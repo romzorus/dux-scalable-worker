@@ -13,6 +13,8 @@ use tracing_subscriber::{fmt, prelude::*};
 use tracing_subscriber::filter::EnvFilter;
 use log::{debug, error, log_enabled, info, Level};
 use env_logger::Env;
+use simple_crypt::encrypt;
+use simple_crypt::decrypt;
 
 use duxcore::prelude::*;
 
@@ -129,7 +131,10 @@ pub async fn assignment_handler(rmq_conf: RabbitMqConfig) {
                 Err(_) => {}
             }
         }
-        let mut assignment: Assignment = serde_json::from_str(&String::from_utf8_lossy(&message_raw_content)).unwrap();
+        // Decrypt data
+        let decrypted_serialized_assignment = decrypt(&message_raw_content, b"dux").unwrap();
+
+        let mut assignment: Assignment = serde_json::from_str(&String::from_utf8_lossy(&decrypted_serialized_assignment)).unwrap();
 
         info!("{} : Assignment received", assignment.correlationid.clone());
 
