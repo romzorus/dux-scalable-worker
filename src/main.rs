@@ -161,9 +161,10 @@ pub async fn assignment_handler(rmq_conf: RabbitMqConfig) {
             .await
             .unwrap();
         let serialized_result = serde_json::to_string(&assignment).unwrap().into_bytes();
+        let encrypted_serialized_result = encrypt(&serialized_result, b"dux").unwrap();
         let args = BasicPublishArguments::new(exchange_name, routing_key);
         channel
-            .basic_publish(BasicProperties::default(), serialized_result, args)
+            .basic_publish(BasicProperties::default(), encrypted_serialized_result, args)
             .await
             .unwrap();
         info!("{} : Result sent to message broker", assignment.correlationid.clone());
