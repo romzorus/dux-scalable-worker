@@ -13,6 +13,8 @@ use tracing_subscriber::{fmt, prelude::*};
 use tracing_subscriber::filter::EnvFilter;
 use log::{debug, error, log_enabled, info, Level};
 use env_logger::Env;
+use simple_crypt::encrypt;
+use simple_crypt::decrypt;
 
 use duxcore::prelude::*;
 
@@ -55,7 +57,7 @@ fn main() {
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
 
     for _ in 0..(threads_number) {
-        let handle = rt.spawn(assignment_handler(conf.rabbitmq.clone()));
+        let handle = rt.spawn(assignment_handler(conf.clone()));
         handles.push(handle);
     }
 
@@ -66,7 +68,7 @@ fn main() {
 }
 
 
-pub async fn assignment_handler(rmq_conf: RabbitMqConfig) {
+pub async fn assignment_handler(conf: DuxConfigScalableWorker) {
 
     // "Consume" Assignments from the Message Broker (MB)
     tracing_subscriber::registry()
@@ -76,10 +78,10 @@ pub async fn assignment_handler(rmq_conf: RabbitMqConfig) {
         .ok();
 
     let connection = Connection::open(&OpenConnectionArguments::new(
-        rmq_conf.rmq_address.as_str(),
-        rmq_conf.rmq_port,
-        rmq_conf.rmq_username.as_str(),
-        rmq_conf.rmq_password.as_str(),
+        conf.rabbitmq.rmq_address.as_str(),
+        conf.rabbitmq.rmq_port,
+        conf.rabbitmq.rmq_username.as_str(),
+        conf.rabbitmq.rmq_password.as_str(),
     ))
     .await
     .unwrap();
@@ -129,7 +131,10 @@ pub async fn assignment_handler(rmq_conf: RabbitMqConfig) {
                 Err(_) => {}
             }
         }
-        let mut assignment: Assignment = serde_json::from_str(&String::from_utf8_lossy(&message_raw_content)).unwrap();
+        // Decrypt data
+        let decrypted_serialized_assignment = decrypt(&message_raw_content, conf.encryption.password.as_bytes()).unwrap();
+
+        let mut assignment: Assignment = serde_json::from_str(&String::from_utf8_lossy(&decrypted_serialized_assignment)).unwrap();
 
         info!("{} : Assignment received", assignment.correlationid.clone());
 
@@ -156,9 +161,10 @@ pub async fn assignment_handler(rmq_conf: RabbitMqConfig) {
             .await
             .unwrap();
         let serialized_result = serde_json::to_string(&assignment).unwrap().into_bytes();
+        let encrypted_serialized_result = encrypt(&serialized_result, conf.encryption.password.as_bytes()).unwrap();
         let args = BasicPublishArguments::new(exchange_name, routing_key);
         channel
-            .basic_publish(BasicProperties::default(), serialized_result, args)
+            .basic_publish(BasicProperties::default(), encrypted_serialized_result, args)
             .await
             .unwrap();
         info!("{} : Result sent to message broker", assignment.correlationid.clone());

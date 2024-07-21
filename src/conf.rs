@@ -2,15 +2,17 @@ use config::{self, Config, File, FileFormat};
 use duxcore::error::Error;
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct DuxConfigScalableWorker {
     pub rabbitmq: RabbitMqConfig,
+    pub encryption: EncryptionParameters
 }
 
 impl DuxConfigScalableWorker {
     pub fn default() -> DuxConfigScalableWorker {
         DuxConfigScalableWorker {
             rabbitmq: RabbitMqConfig::default(),
+            encryption: EncryptionParameters::default()
         }
     }
 
@@ -59,6 +61,19 @@ impl RabbitMqConfig {
             rmq_port: 5672,
             rmq_username: "guest".to_string(),
             rmq_password: "guest".to_string(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct EncryptionParameters {
+    pub password: String,
+}
+
+impl EncryptionParameters {
+    pub fn default() -> EncryptionParameters {
+        EncryptionParameters {
+            password: "dux".to_string(),
         }
     }
 }
